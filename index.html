@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>내 별점 지도</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1f2933">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="별점지도">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="map"></div>
+
+<header class="topbar">
+  <button id="btnSearchOpen" class="searchbar" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>식당 검색해서 별점 등록</span>
+  </button>
+</header>
+
+<div id="pill" class="pill">0곳</div>
+
+<div class="fab-stack">
+  <button id="btnLocate" class="fab" aria-label="내 위치">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <button id="btnList" class="fab" aria-label="목록">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+  </button>
+  <button id="btnSettings" class="fab" aria-label="설정">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <button id="btnAdd" class="fab primary" aria-label="식당 검색해서 등록">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+  </button>
+</div>
+
+<!-- 검색 페이지 (실제 식당 데이터: 카카오맵) -->
+<section id="pageSearch" class="page hidden" aria-label="식당 검색">
+  <div class="page-head">
+    <button id="btnSearchBack" class="icon-btn big" type="button" aria-label="닫기">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="search">
+      <svg class="search-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="searchInput" type="search" placeholder="식당 이름, 지역 (예: 성수 파스타)" autocomplete="off" enterkeyhint="search">
+      <button id="searchClear" class="icon-btn" type="button" aria-label="지우기">✕</button>
+    </div>
+  </div>
+  <div class="page-sub">
+    <button id="chipNearby" class="chip" type="button">📍 내 주변</button>
+    <span id="searchHint" class="hint"></span>
+  </div>
+  <ul id="searchResults" class="results"></ul>
+  <div id="searchMore" class="more hidden"><button class="btn" id="btnMore" type="button">더 보기</button></div>
+  <div class="manual-line">검색에 안 나와요? <button id="btnManual" class="link" type="button">지도에 직접 찍어서 등록</button></div>
+</section>
+
+<div id="backdrop" class="backdrop hidden"></div>
+
+<!-- 별점 등록 / 수정 -->
+<section id="sheetAdd" class="sheet hidden" aria-label="별점 등록">
+  <div class="grip"></div>
+  <h2 id="addTitle">별점 등록</h2>
+  <div id="placeCard" class="place-card hidden">
+    <div class="pc-name" id="pcName"></div>
+    <div class="pc-sub" id="pcSub"></div>
+  </div>
+  <div id="manualFields">
+    <div class="loc-line">
+      <span id="locText"></span>
+      <button type="button" id="btnUseGps">현재 위치로</button>
+    </div>
+    <div class="field">
+      <label for="fName">이름</label>
+      <input id="fName" type="text" placeholder="가게 이름" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="pair-rate" id="pairRate"></div>
+  <div class="avg-line" id="avgLine"></div>
+  <div class="rate-tools">
+    <label class="toggle small"><input type="checkbox" id="fBlind"> 🙈 서로 안 보이게 매기기</label>
+  </div>
+  <div class="hint center">별 왼쪽 절반을 누르면 0.5점 · 같은 별을 다시 누르면 취소</div>
+
+  <div class="row">
+    <div class="field">
+      <label for="fCategory">종류</label>
+      <input id="fCategory" type="text" placeholder="예: 국밥, 파스타" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="fDate">방문일</label>
+      <input id="fDate" type="date">
+    </div>
+  </div>
+  <div class="field">
+    <label for="fMemo">메모</label>
+    <textarea id="fMemo" placeholder="뭐가 맛있었는지, 다음엔 뭐 먹을지"></textarea>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnCancelAdd" type="button">취소</button>
+    <button class="btn primary" id="btnSave" type="button">저장</button>
+  </div>
+</section>
+
+<!-- 상세 -->
+<section id="sheetDetail" class="sheet hidden" aria-label="식당 상세">
+  <div class="grip"></div>
+  <div class="detail-head">
+    <div class="big-badge" id="dStar"></div>
+    <div class="detail-text">
+      <div class="detail-name" id="dName"></div>
+      <div class="detail-sub" id="dSub"></div>
+    </div>
+  </div>
+  <div class="pair-line" id="dPair"></div>
+  <div class="detail-memo" id="dMemo"></div>
+  <div class="detail-meta" id="dMeta"></div>
+  <div class="detail-links">
+    <button class="link" id="btnKakao" type="button">카카오맵에서 보기</button>
+    <button class="link" id="btnRefresh" type="button">정보 새로고침</button>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnEdit" type="button">수정</button>
+    <button class="btn danger" id="btnDelete" type="button">삭제</button>
+  </div>
+</section>
+
+<!-- 목록 -->
+<section id="sheetList" class="sheet hidden" aria-label="우리 식당 목록">
+  <div class="grip"></div>
+  <div class="list-head">
+    <h2>우리 식당 <span id="listCount" class="detail-sub"></span></h2>
+    <div class="chips" id="chips">
+      <button class="chip" data-min="0" type="button">전체</button>
+      <button class="chip" data-min="4" type="button">4+</button>
+      <button class="chip" data-min="4.5" type="button">4.5+</button>
+    </div>
+  </div>
+  <ul class="plist" id="plist"></ul>
+</section>
+
+<!-- 처음 켤 때: 두 사람 이름 -->
+<section id="sheetNames" class="sheet hidden" aria-label="내 이름">
+  <div class="grip"></div>
+  <h2>이름이 뭐예요?</h2>
+  <p class="hint">이 폰에서 매기는 점수는 이 이름으로 저장돼요. 같이 쓰는 사람은 자기 폰에서 자기 이름을 넣으면 돼요.</p>
+  <div class="field">
+    <label for="nMe">내 이름</label>
+    <input id="nMe" type="text" maxlength="6" placeholder="예: 민수" autocomplete="off" enterkeyhint="done">
+  </div>
+  <div class="actions">
+    <button class="btn primary" id="btnNamesSave" type="button">시작하기</button>
+  </div>
+</section>
+
+<!-- 카카오 키 설정 (처음 한 번) -->
+<section id="sheetSetup" class="sheet hidden" aria-label="검색 설정">
+  <div class="grip"></div>
+  <h2>검색 설정 (처음 한 번만)</h2>
+  <p class="hint">식당 이름과 위치는 카카오맵에서 실시간으로 가져와요. 무료 키 하나만 있으면 돼요. 키는 이 기기에만 저장돼요.</p>
+  <ol class="steps">
+    <li><b>developers.kakao.com</b> 로그인 → 내 애플리케이션 → 애플리케이션 추가 (이름 아무거나)</li>
+    <li>앱 → 플랫폼 키 → JavaScript 키의 <b>JavaScript SDK 도메인</b>에 이 주소 등록:<br><code id="setupOrigin"></code></li>
+    <li>앱 → 카카오맵 → <b>활성화 설정 ON</b></li>
+    <li><b>JavaScript 키</b> 복사해서 아래에 붙여넣기</li>
+  </ol>
+  <div class="field">
+    <input id="setupKey" type="text" placeholder="JavaScript 키" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnSetupLater" type="button">나중에</button>
+    <button class="btn primary" id="btnSetupSave" type="button">저장하고 검색</button>
+  </div>
+  <div class="hint center" style="margin-top:12px">
+    <button class="link" id="btnUseOsm" type="button">키 없이 OpenStreetMap 검색으로 쓰기</button> (한국 식당은 잘 안 나와요)
+  </div>
+</section>
+
+<!-- 설정 -->
+<section id="sheetSettings" class="sheet hidden" aria-label="설정">
+  <div class="grip"></div>
+  <h2>설정</h2>
+  <div class="settings-section">
+    <h3>내 이름</h3>
+    <div class="field"><input id="sMe" type="text" maxlength="6" autocomplete="off" placeholder="이름"></div>
+    <div class="hint" id="sOthers"></div>
+    <div class="hint">지도 배지의 왼쪽 반원이 내 점수, 오른쪽 반원이 상대 점수예요. 가운데 숫자는 평균.</div>
+  </div>
+  <div class="settings-section">
+    <h3>지도에 표시</h3>
+    <label class="toggle"><input type="checkbox" id="sGu"> 서울 구 경계와 구 이름</label>
+    <label class="toggle"><input type="checkbox" id="sRoads"> 도로명 · 도로 번호</label>
+  </div>
+  <div class="settings-section">
+    <h3>지도 스타일</h3>
+    <div class="field">
+      <select id="sStyle">
+        <option value="positron">Positron · 연한 회색 (기본)</option>
+        <option value="bright">Bright · 밝은 컬러</option>
+        <option value="liberty">Liberty · 진한 컬러</option>
+      </select>
+    </div>
+  </div>
+  <div class="settings-section">
+    <h3>식당 검색 (카카오맵)</h3>
+    <div class="field">
+      <input id="sKakao" type="text" placeholder="카카오 JavaScript 키" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="hint" id="searchSourceHint"></div>
+    <div class="hint"><button class="link" id="btnOpenSetup" type="button">키 발급 방법 보기</button></div>
+  </div>
+  <div class="settings-section">
+    <h3>두 폰 동기화 (구글 시트)</h3>
+    <div class="field">
+      <input id="sSyncUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false" inputmode="url">
+    </div>
+    <div class="field">
+      <input id="sSyncToken" type="text" placeholder="비밀 코드 (Code.gs 의 TOKEN 을 정했을 때만)" autocomplete="off">
+    </div>
+    <label class="toggle"><input type="checkbox" id="sAutoSync"> 저장할 때마다 자동으로 맞추기</label>
+    <div class="actions">
+      <button class="btn" id="btnSyncNow" type="button">지금 동기화</button>
+      <button class="btn" id="btnSyncShare" type="button">상대 폰에 연결 보내기</button>
+    </div>
+    <div class="hint sync-status" id="syncStatus"></div>
+    <div class="hint"><button class="link" id="btnSyncHelp" type="button">시트 만드는 방법 보기 (5분)</button></div>
+  </div>
+  <div class="settings-section">
+    <h3>데이터</h3>
+    <div class="actions">
+      <button class="btn" id="btnExport" type="button">내보내기 (JSON)</button>
+      <button class="btn" id="btnImport" type="button">불러오기</button>
+    </div>
+    <input id="fileImport" type="file" accept="application/json,.json" class="hidden">
+    <div class="hint" id="dataHint"></div>
+  </div>
+  <div class="settings-section">
+    <button class="btn danger full" id="btnWipe" type="button">전체 삭제</button>
+  </div>
+  <div class="actions">
+    <button class="btn" id="btnCloseSettings" type="button">닫기</button>
+  </div>
+</section>
+
+<!-- 구글 시트 동기화 만드는 법 -->
+<section id="sheetSyncHelp" class="sheet hidden" aria-label="동기화 설정">
+  <div class="grip"></div>
+  <h2>두 폰 합치기: 구글 시트 한 장</h2>
+  <p class="hint">구글 시트 하나가 작은 서버 역할을 해요. 카드 등록도 서버 비용도 없어요. PC에서 한 번만 만들어 두면 두 폰이 같은 시트로 점수를 주고받고, 시트를 열면 표로도 볼 수 있어요.</p>
+  <ol class="steps">
+    <li><b>sheets.google.com</b> → 빈 스프레드시트 만들기 (이름은 아무거나, 예: 별점지도)</li>
+    <li>메뉴 <b>확장 프로그램 → Apps Script</b> → 편집기에 있던 내용을 모두 지우고 <button class="link" id="btnCopyGs" type="button">코드 복사</button>한 것을 붙여넣기 → 저장(💾)</li>
+    <li>오른쪽 위 <b>배포 → 새 배포</b> → ⚙ 유형 선택: <b>웹 앱</b> → 실행 사용자: <b>나</b>, 액세스 권한: <b>모든 사용자</b> → 배포</li>
+    <li>"권한 검토" → 내 구글 계정 선택 → 확인되지 않은 앱 경고가 뜨면 <b>고급 → …(안전하지 않음)으로 이동</b> → 허용</li>
+    <li>나온 <b>웹 앱 URL</b>(…/exec)을 복사해서 설정의 "동기화 주소" 칸에 붙여넣기 → 지금 동기화</li>
+    <li>상대 폰도 설정에 같은 주소를 넣어요. "상대 폰에 연결 보내기"로 받은 링크를 열어도 돼요.<br>두 폰 모두 켜자마자 연결되게 하려면 <code>config.js</code>의 <code>syncUrl</code>에 주소를 넣고 배포하면 돼요.</li>
+  </ol>
+  <p class="hint">주소를 아는 사람은 누구나 시트에 점수를 쓸 수 있어요. 걱정되면 Code.gs 의 <code>TOKEN</code>에 비밀 코드를 적고, 양쪽 폰 설정에도 같은 코드를 넣어요.<br>코드를 고친 뒤에는 "배포 → 배포 관리 → ✏️ → 버전: 새 버전 → 배포"를 해야 반영돼요 (URL은 그대로).</p>
+  <div class="actions">
+    <button class="btn" id="btnSyncHelpBack" type="button">설정으로</button>
+  </div>
+</section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="vendor/maplibre-gl.js"></script>
+<script src="config.js"></script>
+<script src="sync/merge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

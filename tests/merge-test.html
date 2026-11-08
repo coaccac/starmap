@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<meta charset="utf-8">
+<title>merge test</title>
+<style>body{font:14px/1.5 ui-monospace,monospace;padding:16px} .ok{color:#15803d} .fail{color:#b91c1c;font-weight:700}</style>
+<h1 id="title">동기화 병합 규칙 테스트</h1>
+<pre id="out"></pre>
+<script src="../sync/merge.js"></script>
+<script>
+// sync/merge.js(폰) 와 sync/Code.gs(시트 서버) 가 같은 결과를 내는지, 그리고 규칙이 의도대로인지 확인한다.
+(async () => {
+  const out = document.getElementById('out');
+  let pass = 0, fail = 0;
+  const log = (ok, name, detail) => {
+    const li = document.createElement('div');
+    li.className = ok ? 'ok' : 'fail';
+    li.textContent = (ok ? 'PASS ' : 'FAIL ') + name + (detail ? ' — ' + detail : '');
+    out.appendChild(li);
+    if (ok) pass++; else fail++;
+  };
+  const canon = (v) => Array.isArray(v) ? '[' + v.map(canon).join(',') + ']'
+    : (v && typeof v === 'object') ? '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}'
+    : JSON.stringify(v);
+  const sortByKey = (arr, keyOf) => arr.slice().sort((a, b) => keyOf(a) < keyOf(b) ? -1 : 1);
+  const eq = (name, a, b) => log(canon(a) === canon(b), name, canon(a) === canon(b) ? '' : canon(a) + ' ≠ ' + canon(b));
+
+  // ---- Code.gs 를 브라우저에서 실행 (Apps Script 전역 객체는 흉내) ----
+  const gs = await (await fetch('../sync/Code.gs')).text();
+  const rows = [];
+  const sheet = {
+    getLastRow: () => (rows.length ? rows.length + 1 : 0),
+    getRange: (r, c, nr, nc) => ({
+      getValues: () => rows.slice(r - 2, r - 2 + nr).map((row) => row.slice(c - 1, c - 1 + nc)),
+      setValues(vals) { if (r >= 2) { rows.length = 0; for (const v of vals) rows.push(v); } return this; },
+      setFontWeight() { return this; }, setNumberFormat() { return this; },
+    }),
+    clearContents: () => { rows.length = 0; },
+    setFrozenRows: () => {},
+  };
+  const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }), openById: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }) };
+  const ContentService = { createTextOutput: (s) => ({ _s: s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } };
+  const LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) };
+  let srv;
+  try {
+    srv = new Function('SpreadsheetApp', 'ContentService', 'LockService',
+      gs + '\nreturn { keyOf, sanitize, mergeRecord, mergeSets, doPost, doGet };')(SpreadsheetApp, ContentService, LockService);
+    log(true, 'Code.gs 가 문법 오류 없이 로드됨');
+  } catch (e) { log(false, 'Code.gs 로드', String(e)); document.getElementById('title').textContent = 'FAIL'; return; }
+  const post = (body) => JSON.parse(srv.doPost({ postData: { contents: JSON.stringify(body) } })._s);
+  const M = window.StarmapMerge;
+
+  // ---- 픽스처 ----
+  const P = (o) => M.sanitize(Object.assign({ id: 'a1', kakaoId: '100', name: '을지면옥', lat: 37.56, lng: 126.99, createdAt: 1000, updatedAt: 1000 }, o));
+
+  // 1) 점수: 사람마다 더 최근(ratedAt) 것이 이김
+  {
+    const a = P({ ratings: { 민수: 5 }, ratedAt: { 민수: 100 } });
+    const b = P({ ratings: { 민수: 4 }, ratedAt: { 민수: 200 } });
+    eq('점수 LWW: 더 최근 ratedAt 이 이김', M.mergeRecord(a, b).ratings, { 민수: 4 });
+    eq('점수 LWW: 순서 바꿔도 같음', M.mergeRecord(b, a).ratings, { 민수: 4 });
+  }
+  // 2) 점수 지움도 전파
+  {
+    const a = P({ ratings: { 민수: 5, 지은: 4 }, ratedAt: { 민수: 100, 지은: 100 } });
+    const b = P({ ratings: { 민수: 5 }, ratedAt: { 민수: 100, 지은: 300 } }); // 지은 점수 지움
+    eq('점수 삭제 전파', M.mergeRecord(a, b).ratings, { 민수: 5 });
+    eq('점수 삭제 전파 (역순)', M.mergeRecord(b, a).ratings, { 민수: 5 });
+  }
+  // 3) 예전 데이터(ratedAt 없음): 합집합, 둘 다 있으면 식당 정보가 더 최근인 쪽
+  {
+    const a = P({ ratings: { 민수: 5 }, updatedAt: 1000 });
+    const b = P({ ratings: { 지은: 4 }, updatedAt: 2000 });
+    eq('ratedAt 없으면 합집합', M.mergeRecord(a, b).ratings, { 민수: 5, 지은: 4 });
+    const c = P({ ratings: { 민수: 3 }, updatedAt: 3000 });
+    eq('ratedAt 없고 둘 다 있으면 updatedAt 최근 쪽', M.mergeRecord(a, c).ratings, { 민수: 3 });
+  }
+  // 4) 식당 정보는 updatedAt 최근 쪽, createdAt 은 가장 이른 것, id 는 사전순 작은 것으로 수렴
+  {
+    const a = P({ id: 'zz', memo: '옛 메모', updatedAt: 1000, createdAt: 500 });
+    const b = P({ id: 'aa', memo: '새 메모', updatedAt: 2000, createdAt: 900 });
+    const m = M.mergeRecord(a, b);
+    eq('메모는 최근 수정 쪽', m.memo, '새 메모');
+    eq('createdAt 은 더 이른 것', m.createdAt, 500);
+    eq('updatedAt 은 더 늦은 것', m.updatedAt, 2000);
+    eq('id 는 사전순 작은 것', m.id, 'aa');
+    eq('역순도 같은 결과', M.mergeRecord(b, a), m);
+  }
+  // 5) 삭제: 흔적이 더 최근이면 삭제, 삭제 뒤 수정하면 되살아남
+  {
+    const alive = P({ ratings: { 민수: 5 }, ratedAt: { 민수: 100 }, updatedAt: 1000 });
+    const tomb = P({ ratings: {}, ratedAt: { 민수: 2000 }, updatedAt: 2000, deleted: true });
+    eq('삭제가 더 최근이면 deleted', M.mergeRecord(alive, tomb).deleted, true);
+    eq('삭제가 더 최근이면 점수도 비움', M.mergeRecord(alive, tomb).ratings, {});
+    const edited = P({ ratings: { 지은: 4 }, ratedAt: { 지은: 3000 }, updatedAt: 3000 });
+    const m = M.mergeRecord(tomb, edited);
+    eq('삭제 뒤 수정하면 되살아남', m.deleted, false);
+    eq('되살아난 식당은 새 점수만', m.ratings, { 지은: 4 });
+  }
+  // 6) 카카오 연결: 한쪽만 kakaoId 가 있으면 유지
+  {
+    const a = P({ kakaoId: '', id: 'm1', updatedAt: 2000 });
+    const b = P({ kakaoId: '777', id: 'm1', placeUrl: 'http://place/777', updatedAt: 1000 });
+    const m = M.mergeRecord(a, b);
+    eq('kakaoId 는 있는 쪽을 유지', m.kakaoId, '777');
+    eq('placeUrl 도 따라옴', m.placeUrl, 'http://place/777');
+  }
+  // 7) 집합 병합: 교환법칙 + 폰/서버 코드 동일성
+  {
+    const A = [P({ id: 'a', kakaoId: '1', ratings: { 민수: 5 }, ratedAt: { 민수: 10 } }), P({ id: 'b', kakaoId: '2', memo: 'A', updatedAt: 1500 }), P({ id: 'c', kakaoId: '', name: '수동', updatedAt: 1200 })];
+    const B = [P({ id: 'x', kakaoId: '1', ratings: { 지은: 3 }, ratedAt: { 지은: 20 }, updatedAt: 900 }), P({ id: 'b', kakaoId: '2', memo: 'B', updatedAt: 1600 }), P({ id: 'd', kakaoId: '3' })];
+    const ab = sortByKey(M.mergeSets(A, B), M.keyOf), ba = sortByKey(M.mergeSets(B, A), M.keyOf);
+    eq('mergeSets 교환법칙', ab, ba);
+    eq('mergeSets: 4개 식당', ab.length, 4);
+    eq('mergeSets: 같은 식당 점수 합침', ab.find((p) => p.kakaoId === '1').ratings, { 민수: 5, 지은: 3 });
+    eq('mergeSets: 메모는 최근 쪽', ab.find((p) => p.kakaoId === '2').memo, 'B');
+    const srvAb = sortByKey(srv.mergeSets(A, B), srv.keyOf);
+    eq('Code.gs 와 merge.js 결과 동일', srvAb, ab);
+    eq('Code.gs sanitize 동일', srv.sanitize({ id: 'q', lat: '37.1', lng: 127, ratings: { ' 민수 ': '4.4', x: 9 }, ratedAt: { 민수: '5' }, memo: null, deleted: 0 }), M.sanitize({ id: 'q', lat: '37.1', lng: 127, ratings: { ' 민수 ': '4.4', x: 9 }, ratedAt: { 민수: '5' }, memo: null, deleted: 0 }));
+    eq('sanitize: 점수 0.5 단위·범위 밖 버림·이름 trim', M.sanitize({ id: 'q', lat: 1, lng: 1, ratings: { ' 민수 ': '4.4', x: 9 } }).ratings, { 민수: 4.5 });
+  }
+  // 8) 서버 흐름: 폰 A → 폰 B → A 삭제 → B 의 옛 사본
+  {
+    rows.length = 0;
+    const r1 = post({ op: 'sync', places: [P({ id: 'a1', ratings: { 민수: 5 }, ratedAt: { 민수: 100 }, updatedAt: 1000 })], tombs: [] });
+    eq('서버 1회: ok', r1.ok, true);
+    eq('서버 1회: 1곳', r1.places.length, 1);
+    eq('서버 1회: 시트에 1줄', rows.length, 1);
+    const r2 = post({ op: 'sync', places: [P({ id: 'b9', ratings: { 지은: 4 }, ratedAt: { 지은: 150 }, updatedAt: 1100, memo: '지은 메모' })], tombs: [] });
+    eq('서버 2회: 같은 식당 하나로', r2.places.length, 1);
+    eq('서버 2회: 점수 합침', r2.places[0].ratings, { 민수: 5, 지은: 4 });
+    eq('서버 2회: id 수렴', r2.places[0].id, 'a1');
+    eq('서버 2회: 메모는 최근 쪽', r2.places[0].memo, '지은 메모');
+    const r3 = post({ op: 'sync', places: [], tombs: [P({ id: 'a1', ratings: {}, ratedAt: { 민수: 5000, 지은: 5000 }, updatedAt: 5000, deleted: true })] });
+    eq('서버 3회: 삭제 반영', r3.places[0].deleted, true);
+    eq('서버 3회: 시트 상태 열 = 삭제', rows[0][8], '삭제');
+    const r4 = post({ op: 'sync', places: [P({ id: 'b9', ratings: { 지은: 4 }, ratedAt: { 지은: 150 }, updatedAt: 1100 })], tombs: [] });
+    eq('서버 4회: 옛 사본이 와도 삭제 유지', r4.places[0].deleted, true);
+    eq('서버 4회: 바뀐 것 없음', r4.changed, false);
+    const r5 = post({ op: 'sync', places: [P({ id: 'c3', ratings: { 지은: 5 }, ratedAt: { 지은: 9000 }, updatedAt: 9000, memo: '=SUM(1)' })], tombs: [] });
+    eq('서버 5회: 삭제 뒤 새로 등록하면 되살아남', r5.places[0].deleted, false);
+    eq('서버 5회: 되살아난 식당은 새 점수만', r5.places[0].ratings, { 지은: 5 });
+    eq("시트 셀: '=' 로 시작하는 메모는 글자로 고정", rows[0][6], "'=SUM(1)");
+    const g = JSON.parse(srv.doGet({})._s);
+    eq('doGet: 살아 있는 식당 수', g.places, 1);
+    eq('bad json', JSON.parse(srv.doPost({ postData: { contents: '{nope' } })._s).ok, false);
+    eq('쓰레기 레코드는 버림', post({ op: 'sync', places: [{ name: 'x' }, null, { id: 'z', lat: 'a', lng: 1 }], tombs: [] }).places.length, 1);
+  }
+
+  document.getElementById('title').textContent = `${fail ? 'FAIL' : 'PASS'} — ${pass} 통과, ${fail} 실패`;
+})();
+</script>
+</html>
