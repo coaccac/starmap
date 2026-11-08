@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>폰트 후보 고르기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/variable/woff2/SUIT-Variable.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css">
+<link rel="stylesheet" href="https://hangeul.pstatic.net/hangeul_static/css/nanum-square-neo.css">
+<link rel="stylesheet" href="https://hangeul.pstatic.net/hangeul_static/css/nanum-square-round.css">
+<link rel="stylesheet" href="https://spoqa.github.io/spoqa-han-sans/css/SpoqaHanSansNeo.css">
+<link rel="stylesheet" href="https://webfontworld.github.io/gmarket/GmarketSans.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;700&family=Gowun+Dodum&display=swap">
+<style>
+@font-face { font-family: 'Freesentation'; font-weight: 400; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-4Regular.woff2') format('woff2'); }
+@font-face { font-family: 'Freesentation'; font-weight: 500; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-5Medium.woff2') format('woff2'); }
+@font-face { font-family: 'Freesentation'; font-weight: 700; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-7Bold.woff2') format('woff2'); }
+@font-face { font-family: 'Paperlogy'; font-weight: 400; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-4Regular.woff2') format('woff2'); }
+@font-face { font-family: 'Paperlogy'; font-weight: 500; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-5Medium.woff2') format('woff2'); }
+@font-face { font-family: 'Paperlogy'; font-weight: 700; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-7Bold.woff2') format('woff2'); }
+
+:root {
+  --sys: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f: var(--sys);
+  --accent: #E85A3A; --fg: #1F2933; --muted: #6B7280; --faint: #9CA3AF; --soft: #F3F4F6; --line: #E5E7EB;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #E9ECEF; color: var(--fg); font-family: var(--f); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 440px; margin: 0 auto; padding: 10px 12px 60px; }
+.intro { font-family: var(--sys); font-size: 13px; color: var(--muted); line-height: 1.5; margin: 4px 2px 10px; }
+.intro b { color: var(--fg); }
+
+/* 앱 화면 흉내 (선택한 폰트가 여기에 적용돼요) */
+.mock { position: sticky; top: 0; z-index: 5; background: #E9ECEF; padding: 6px 0 10px; }
+.now { font-family: var(--sys); font-size: 12px; color: var(--muted); margin: 0 2px 6px; }
+.now b { color: var(--accent); }
+.phone { background: #F7F7F8; border-radius: 22px; padding: 12px; box-shadow: 0 10px 30px rgba(16,24,40,.12); border: 1px solid #fff; }
+.search { background: #fff; border-radius: 16px; padding: 12px 14px; display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 15px; box-shadow: 0 2px 10px rgba(16,24,40,.08); }
+.search svg { width: 18px; height: 18px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; background: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; margin: 10px 0; box-shadow: 0 2px 8px rgba(16,24,40,.08); }
+.pill::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.sheet { background: #fff; border-radius: 20px 20px 0 0; padding: 12px 14px 8px; box-shadow: 0 -4px 20px rgba(16,24,40,.08); }
+.grip { width: 36px; height: 4px; border-radius: 2px; background: #D1D5DB; margin: 0 auto 10px; }
+.head { display: flex; align-items: center; gap: 8px; }
+.head h2 { margin: 0; font-size: 19px; letter-spacing: -0.02em; }
+.head h2 span { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+.chips { display: flex; gap: 5px; margin-left: auto; }
+.chip { border-radius: 999px; background: var(--soft); padding: 6px 10px; font-size: 12px; font-weight: 600; }
+.chip.on { background: var(--fg); color: #fff; }
+.x { width: 30px; height: 30px; border-radius: 50%; background: var(--soft); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+.grp { display: flex; align-items: center; gap: 8px; padding: 12px 2px 6px; }
+.grp .g { font-size: 15px; font-weight: 800; }
+.grp .c { font-size: 12px; color: var(--muted); }
+.grp .m { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--accent); }
+.row { display: flex; align-items: center; gap: 12px; padding: 9px 2px; border-top: 1px solid var(--line); }
+.badge { flex: none; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: #fff; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(16,24,40,.18); letter-spacing: -0.02em; }
+.badge.a { background: linear-gradient(90deg, #B02D0E 0 50%, #E85A3A 50% 100%); text-shadow: 0 0 2px rgba(60,20,10,.5); }
+.badge.b { background: linear-gradient(90deg, #E85A3A 0 50%, #E85A3A 50% 100%); text-shadow: 0 0 2px rgba(60,20,10,.5); }
+.badge.lock { background: #9AA5B1; font-size: 17px; }
+.name { font-size: 15px; font-weight: 700; }
+.sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+.detail { display: flex; gap: 12px; align-items: center; padding: 12px 2px 4px; border-top: 1px solid var(--line); margin-top: 4px; }
+.big { width: 50px; height: 50px; font-size: 19px; }
+.dname { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+.dsub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.btns { display: flex; gap: 8px; padding: 10px 0 4px; }
+.btn { flex: 1; text-align: center; border-radius: 14px; padding: 12px; font-size: 15px; font-weight: 700; background: var(--soft); }
+.btn.p { background: var(--accent); color: #fff; }
+
+/* 후보 카드 */
+h1 { font-family: var(--sys); font-size: 15px; color: var(--muted); font-weight: 700; margin: 18px 2px 8px; }
+.cards { display: grid; gap: 10px; }
+.card { background: #fff; border-radius: 16px; padding: 12px 14px; border: 2px solid transparent; box-shadow: 0 1px 3px rgba(16,24,40,.06); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.card.on { border-color: var(--accent); }
+.card .t { display: flex; align-items: baseline; gap: 8px; }
+.card .t b { font-size: 16px; }
+.card .t small { font-family: var(--sys); font-size: 11px; color: var(--faint); margin-left: auto; white-space: nowrap; }
+.card .d { font-family: var(--sys); font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.card .s { font-size: 15px; line-height: 1.55; margin-top: 8px; color: var(--fg); }
+.card .s .n { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; margin-right: 6px; }
+.card .s .mu { color: var(--muted); font-size: 13px; }
+.foot { font-family: var(--sys); font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="intro"><b>아래 카드를 누르면</b> 위 화면이 그 폰트로 바뀌어요. 마음에 드는 걸 골라서 이름을 알려 주세요.</p>
+
+  <div class="mock">
+    <div class="now">지금 보는 폰트: <b id="nowName">시스템 기본 (지금)</b></div>
+    <div class="phone">
+      <div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>식당 검색해서 별점 등록</div>
+      <div class="pill">12곳</div>
+      <div class="sheet">
+        <div class="grip"></div>
+        <div class="head"><h2>우리 식당<span>12곳</span></h2><div class="chips"><span class="chip on">전체</span><span class="chip">4+</span><span class="chip">4.5+</span></div><span class="x">✕</span></div>
+        <div class="grp"><span class="g">중구</span><span class="c">3곳 · 최고 4.5</span><span class="m">지도</span></div>
+        <div class="row"><span class="badge a">4.5</span><div><div class="name">을지면옥</div><div class="sub">지은 4.0 · 민수 5.0<br>냉면 · 여름에만. 제육 꼭.</div></div></div>
+        <div class="row"><span class="badge lock">?</span><div><div class="name">우래옥</div><div class="sub">민수 매김 · 내 점수를 매기면 공개<br>냉면</div></div></div>
+        <div class="row"><span class="badge b">4.0</span><div><div class="name">광장시장 순희네 빈대떡</div><div class="sub">지은 4.0 · 민수 4.0<br>분식 · 막걸리랑 같이</div></div></div>
+        <div class="detail"><span class="badge a big">4.5</span><div><div class="dname">을지면옥</div><div class="dsub">평균 4.5 · 꼭 다시 갈 곳 · 냉면 · 중구</div></div></div>
+        <div class="btns"><span class="btn">수정</span><span class="btn p">저장</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h1>후보</h1>
+  <div class="cards" id="cards"></div>
+  <p class="foot">시스템 기본만 다운로드가 없어요. 나머지는 처음 열 때 글꼴 파일을 받아요 (한글은 쓰는 글자만 받는 방식이라 보통 수백 KB). 인터넷이 없을 땐 시스템 기본으로 보여요.</p>
+</div>
+<script>
+const FONTS = [
+  { name: '시스템 기본 (지금)', family: 'var(--sys)', tag: '다운로드 없음', desc: '아이폰 기본 한글 글꼴(Apple SD Gothic Neo). 무난하고 빠름.' },
+  { name: 'Pretendard', family: "'Pretendard Variable', var(--sys)", tag: '모던 · 중립', desc: '요즘 한국 앱의 표준. 깔끔하고 중립적이라 어디에나 어울려요.' },
+  { name: 'Wanted Sans', family: "'Wanted Sans Variable', var(--sys)", tag: '모던 · 부드러움', desc: 'Pretendard보다 살짝 둥글고 부드러운 UI 글꼴.' },
+  { name: 'SUIT', family: "'SUIT Variable', var(--sys)", tag: '기하학 · 숫자 예쁨', desc: '반듯하고 모던해요. 숫자 모양이 예뻐 점수 배지와 잘 맞아요.' },
+  { name: 'Freesentation', family: "'Freesentation', var(--sys)", tag: '2024 신작 · 좁음', desc: '또렷하고 현대적. 글자 폭이 살짝 좁아 목록이 시원해 보여요.' },
+  { name: 'Paperlogy', family: "'Paperlogy', var(--sys)", tag: '2024 신작 · 트렌디', desc: '네모반듯한 기하학 느낌. 요즘 포스터·브랜딩에 많이 보여요.' },
+  { name: 'NanumSquare Neo', family: "'NanumSquareNeo', var(--sys)", tag: '단단함', desc: '네모 틀에 꽉 찬 느낌. 제목이 단단해 보여요.' },
+  { name: 'NanumSquare Round', family: "'NanumSquareRound', var(--sys)", tag: '둥글둥글 · 귀여움', desc: '둥글둥글 귀여운 느낌. 둘이 쓰는 앱 분위기엔 제일 말랑해요.' },
+  { name: 'Spoqa Han Sans Neo', family: "'Spoqa Han Sans Neo', var(--sys)", tag: '친근 · 가독성', desc: '스타트업 앱의 클래식. 둥글고 친근하며 읽기 편해요.' },
+  { name: 'IBM Plex Sans KR', family: "'IBM Plex Sans KR', var(--sys)", tag: '개성 · 기계적', desc: '획에 개성이 있고 살짝 기계적인 분위기.' },
+  { name: 'Noto Sans KR', family: "'Noto Sans KR', var(--sys)", tag: '구글 표준 · 넓음', desc: '넓고 묵직해서 화면이 꽉 차 보여요.' },
+  { name: 'Gowun Dodum', family: "'Gowun Dodum', var(--sys)", tag: '따뜻함', desc: '따뜻하고 손으로 쓴 듯한 기운이 살짝. 메모가 정겨워 보여요.' },
+  { name: 'Gmarket Sans', family: "'GmarketSans', var(--sys)", tag: '굵음 · 제목용', desc: '두껍고 개성 강함. 본문보다는 제목·숫자용. 점수 배지에만 쓰는 조합도 가능해요.' },
+];
+const cards = document.getElementById('cards');
+cards.innerHTML = FONTS.map((f, i) => `<div class="card${i === 0 ? ' on' : ''}" data-i="${i}" style="font-family:${f.family}">
+  <div class="t"><b>${f.name}</b><small>${f.tag}</small></div>
+  <div class="d">${f.desc}</div>
+  <div class="s"><span class="n">4.5</span>을지면옥 · 광장시장 순희네 빈대떡<br><span class="mu">평균 4.5 · 꼭 다시 갈 곳 · 여름에만. 제육 꼭. · 0123456789</span></div>
+</div>`).join('');
+function pick(i) {
+  const f = FONTS[i];
+  document.documentElement.style.setProperty('--f', f.family);
+  document.getElementById('nowName').textContent = f.name;
+  document.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', Number(c.dataset.i) === i));
+  try { localStorage.setItem('starmap.fontpick', f.name); } catch (e) {}
+}
+cards.addEventListener('click', (e) => { const c = e.target.closest('.card'); if (c) { pick(Number(c.dataset.i)); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
+try { const saved = localStorage.getItem('starmap.fontpick'); const i = FONTS.findIndex((f) => f.name === saved); if (i > 0) pick(i); } catch (e) {}
+
+// ?grid : 모든 후보를 한 화면에 나란히 (비교 스크린샷용)
+if (location.search.indexOf('grid') !== -1) {
+  const sheet = document.querySelector('.sheet').outerHTML;
+  document.querySelector('.wrap').innerHTML = `<style>
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cell { background: #F7F7F8; border-radius: 16px; padding: 8px; border: 1px solid #fff; }
+    .cell .lbl { font-family: var(--sys); font-size: 12px; font-weight: 700; color: var(--accent); margin: 2px 4px 6px; }
+    .cell .sheet { border-radius: 14px; box-shadow: none; padding: 10px 12px 6px; }
+    .cell .detail, .cell .btns, .cell .grip { display: none; }
+  </style><div class="grid">${FONTS.map((f) => `<div class="cell" style="font-family:${f.family}"><div class="lbl">${f.name}</div>${sheet}</div>`).join('')}</div>`;
+}
+</script>
+</body>
+</html>
