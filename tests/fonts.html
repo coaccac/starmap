@@ -145,13 +145,15 @@ try { const saved = localStorage.getItem('starmap.fontpick'); const i = FONTS.fi
 // ?grid : 모든 후보를 한 화면에 나란히 (비교 스크린샷용)
 if (location.search.indexOf('grid') !== -1) {
   const sheet = document.querySelector('.sheet').outerHTML;
+  const pg = Number(new URLSearchParams(location.search).get('page')) || 0; // page=1..4 → 4개씩
+  const list = pg > 0 ? FONTS.slice((pg - 1) * 4, pg * 4) : FONTS;
   document.querySelector('.wrap').innerHTML = `<style>
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .cell { background: #F7F7F8; border-radius: 16px; padding: 8px; border: 1px solid #fff; }
     .cell .lbl { font-family: var(--sys); font-size: 12px; font-weight: 700; color: var(--accent); margin: 2px 4px 6px; }
     .cell .sheet { border-radius: 14px; box-shadow: none; padding: 10px 12px 6px; }
     .cell .detail, .cell .btns, .cell .grip, .cell .row:last-of-type { display: none; }
-  </style><div class="grid">${FONTS.map((f) => `<div class="cell" style="font-family:${f.family}"><div class="lbl">${f.name}</div>${sheet}</div>`).join('')}</div>`;
+  </style><div class="grid">${list.map((f) => `<div class="cell" style="font-family:${f.family}"><div class="lbl">${f.name}</div>${sheet}</div>`).join('')}</div>`;
 }
 </script>
 </body>
