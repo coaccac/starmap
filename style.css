@@ -250,6 +250,6 @@ button { font-family: inherit; cursor: pointer; touch-action: manipulation; colo
 /* 내 점수가 없어서 상대 점수를 가린 곳: 회색 물음표 */
 .badge.lock { background: #9AA5B1; color: #fff; }
 
-/* 물음표 버튼이 켜진 상태, 그동안 점수 칩은 흐리게 */
-.fab.on { background: var(--fg); color: #fff; }
-.map-filter.dim .chip, .chips.dim .chip { opacity: .45; }
+/* 필터 줄의 물음표 칩 (내가 안 매긴 곳만) */
+.chip[data-min="lock"] { font-weight: 800; min-width: 34px; text-align: center; }
+.chip.on[data-min="lock"] { background: #7B8794; border-color: #7B8794; }
