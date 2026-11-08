@@ -81,11 +81,25 @@ function mergeSets(base, incoming) {
 }
 
 // ===== 웹 앱 =====
-// 브라우저로 URL을 열면 (GET) 연결 확인용 JSON이 보여요.
+// 데이터가 바뀔 때마다 올라가는 번호(ver). 폰은 켜져 있는 동안 이 번호만 가볍게 물어보다가, 바뀌면 전체를 받아 가요.
+const VER_KEY = 'starmap_ver';
+function getVer_() {
+  return CacheService.getScriptCache().get(VER_KEY) || PropertiesService.getScriptProperties().getProperty(VER_KEY) || '0';
+}
+function bumpVer_() {
+  const v = String(Math.max(Date.now(), (Number(getVer_()) || 0) + 1)); // 같은 밀리초에 두 번 바뀌어도 항상 커지게
+  CacheService.getScriptCache().put(VER_KEY, v, 21600);
+  PropertiesService.getScriptProperties().setProperty(VER_KEY, v);
+  return v;
+}
+
+// 브라우저로 URL을 열면 (GET) 연결 확인용 JSON이 보여요. ?op=ver 는 번호만 돌려줘요 (시트를 읽지 않아 빠름).
 function doGet(e) {
   try {
+    const op = e && e.parameter && e.parameter.op;
+    if (op === 'ver') return out_({ ok: true, ver: getVer_(), time: Date.now() });
     const all = loadAll_(sheet_());
-    return out_({ ok: true, app: 'starmap-sync', places: all.filter((p) => !p.deleted).length, time: Date.now() });
+    return out_({ ok: true, app: 'starmap-sync', places: all.filter((p) => !p.deleted).length, ver: getVer_(), time: Date.now() });
   } catch (err) {
     return out_({ ok: false, error: String((err && err.message) || err) });
   }
@@ -97,7 +111,8 @@ function doPost(e) {
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); }
   catch (err) { return out_({ ok: false, error: 'bad-json' }); }
   if (TOKEN && String(body.token || '') !== TOKEN) return out_({ ok: false, error: 'token' });
-  if (body.op === 'ping') return out_({ ok: true, app: 'starmap-sync', time: Date.now() });
+  if (body.op === 'ping') return out_({ ok: true, app: 'starmap-sync', ver: getVer_(), time: Date.now() });
+  if (body.op === 'ver') return out_({ ok: true, ver: getVer_(), time: Date.now() });
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return out_({ ok: false, error: 'busy' });
@@ -110,8 +125,10 @@ function doPost(e) {
     const merged = mergeSets(current, incoming);
     sortForSheet_(merged);
     const before = JSON.stringify(current), after = JSON.stringify(merged);
-    if (before !== after) saveAll_(sheet, merged);
-    return out_({ ok: true, places: merged, changed: before !== after, time: Date.now() });
+    const changed = before !== after;
+    if (changed) saveAll_(sheet, merged);
+    const ver = changed ? bumpVer_() : getVer_();
+    return out_({ ok: true, places: merged, changed, ver, time: Date.now() });
   } catch (err) {
     return out_({ ok: false, error: String((err && err.message) || err) });
   } finally {

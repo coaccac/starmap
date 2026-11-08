@@ -23,6 +23,7 @@ const RATING_COLORS = {
   '25': '#F3B4A3', '30': '#F19379', '35': '#EE795B', '40': '#E85A3A', '45': '#D4421F', '50': '#B02D0E',
 };
 const NONE_COLOR = '#ECEEF1'; // 아직 안 매긴 쪽
+const LOCK_COLOR = '#9AA5B1'; // 내 점수가 없어서 상대 점수를 가린 곳 (물음표 배지)
 const RATING_TEXT_DARK = new Set(['10', '15', '20', '25']);
 const KO_NAME = ['coalesce', ['get', 'name:ko'], ['get', 'name:nonlatin'], ['get', 'name:latin'], ['get', 'name']];
 const RATING_NUM = ['number', ['get', 'rating'], 3];
@@ -83,7 +84,7 @@ function haversine(a, b) {
 let settings = Object.assign(
   {
     style: 'positron', kakaoKey: '', osmFallback: false, nearby: false, minRating: 0,
-    showRoads: false, showGu: true, blind: false, me: '',
+    showRoads: false, showGu: true, me: '',
     syncUrl: '', syncToken: '', autoSync: true,
   },
   loadJSON(LS_SETTINGS, {}),
@@ -129,6 +130,8 @@ function badgeHalves(r) {
   const others = orderedRaters(r, false).filter((k) => k !== me());
   return { left: r[me()] != null ? r[me()] : null, right: others.length ? r[others[0]] : null };
 }
+// 내가 아직 안 매긴 식당은 다른 사람 점수를 숨긴다. 내 점수를 저장해야 상대 점수와 평균이 보인다 (서로 영향 안 받게).
+function isLocked(r) { return r[me()] == null && raterNames(r).length > 0; }
 // 사람별로 점수를 마지막으로 바꾼 시각 { 이름: ms }. 동기화에서 사람마다 더 최근 점수를 고르는 기준.
 function normalizeRatedAt(src) {
   const out = {};
@@ -192,11 +195,13 @@ function knownOthers() {
 // 지도 마커: 왼쪽 반원 = 나, 오른쪽 반원 = 상대, 가운데 = 평균. 평균이 높을수록 크다.
 function badgeSize(avg) { return Math.round(22 + ((Math.min(5, Math.max(1, avg)) - 1) / 4) * 16); } // 22 ~ 38 css px
 function badgeId(r) {
+  if (isLocked(r)) return 'badge-lock';
   const h = badgeHalves(r), avg = avgOf(r);
   const k = (v) => (v == null ? 'x' : ratingKey(v));
   return `badge-${k(h.left)}-${k(h.right)}-${Math.round(avg * 100)}`;
 }
 function parseBadgeId(id) {
+  if (id === 'badge-lock') return { lock: true };
   const m = /^badge-(x|\d\d)-(x|\d\d)-(\d+)$/.exec(id);
   if (!m) return null;
   const avg = Number(m[3]) / 100;
@@ -210,9 +215,10 @@ function halfPath(ctx, cx, cy, R, left) {
   ctx.closePath();
 }
 function makeBadgeImage(b) {
-  const avg = b.avg;
+  const lock = !!b.lock; // 내 점수가 없는 곳: 회색 물음표
+  const avg = lock ? null : b.avg;
   const pr = 2;
-  const size = badgeSize(avg);
+  const size = lock ? 26 : badgeSize(avg);
   const pad = 8;
   const s = (size + pad * 2) * pr;
   const c = document.createElement('canvas');
@@ -220,7 +226,7 @@ function makeBadgeImage(b) {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   const cx = s / 2, cy = s / 2, R = (size / 2) * pr;
 
-  if (avg >= 4.75) { // 최애급이면 바깥 링
+  if (!lock && avg >= 4.75) { // 최애급이면 바깥 링
     ctx.beginPath(); ctx.arc(cx, cy, R + 4 * pr, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(176,45,14,0.18)'; ctx.fill();
   }
@@ -231,32 +237,42 @@ function makeBadgeImage(b) {
   ctx.restore();
 
   const Ri = R - 2 * pr;
-  halfPath(ctx, cx, cy, Ri, true); ctx.fillStyle = ratingColor(b.left); ctx.fill();
-  halfPath(ctx, cx, cy, Ri, false); ctx.fillStyle = ratingColor(b.right); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(cx, cy - Ri); ctx.lineTo(cx, cy + Ri);
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.3 * pr; ctx.stroke();
+  if (lock) {
+    ctx.beginPath(); ctx.arc(cx, cy, Ri, 0, Math.PI * 2); ctx.fillStyle = LOCK_COLOR; ctx.fill();
+  } else {
+    halfPath(ctx, cx, cy, Ri, true); ctx.fillStyle = ratingColor(b.left); ctx.fill();
+    halfPath(ctx, cx, cy, Ri, false); ctx.fillStyle = ratingColor(b.right); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx, cy - Ri); ctx.lineTo(cx, cy + Ri);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.3 * pr; ctx.stroke();
+  }
 
-  const dark = isDarkText(avg);
-  ctx.font = `800 ${Math.round(size * 0.38) * pr}px ${UI_FONT}`;
+  const label = lock ? '?' : fmtRating(avg);
+  const dark = lock ? false : isDarkText(avg);
+  ctx.font = `800 ${Math.round(size * (lock ? 0.5 : 0.38)) * pr}px ${UI_FONT}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
   ctx.lineWidth = 2.2 * pr;
   ctx.strokeStyle = dark ? 'rgba(255,255,255,0.85)' : 'rgba(60,20,10,0.35)';
-  ctx.strokeText(fmtRating(avg), cx, cy + 0.5 * pr);
+  if (!lock) ctx.strokeText(label, cx, cy + 0.5 * pr);
   ctx.fillStyle = dark ? '#2B3440' : '#FFFFFF';
-  ctx.fillText(fmtRating(avg), cx, cy + 0.5 * pr);
+  ctx.fillText(label, cx, cy + 0.5 * pr);
   return { data: ctx.getImageData(0, 0, s, s), pixelRatio: pr };
 }
 // 화면(목록/상세/검색)용 배지. ratings 객체를 받는다.
 function badgeHTML(r, px) {
   const avg = avgOf(r);
   const size = px || 34;
+  if (isLocked(r)) return lockBadge(size);
   if (avg == null) return `<span class="badge none" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.34)}px">–</span>`;
   const h = badgeHalves(r);
   const dark = isDarkText(avg);
   const bg = `linear-gradient(90deg, ${ratingColor(h.left)} 0 50%, ${ratingColor(h.right)} 50% 100%)`;
   const shadow = dark ? '0 0 2px rgba(255,255,255,.9)' : '0 0 2px rgba(60,20,10,.5)';
   return `<span class="badge" style="width:${size}px;height:${size}px;background:${bg};color:${dark ? '#2B3440' : '#fff'};font-size:${Math.round(size * 0.38)}px;text-shadow:${shadow}">${fmtRating(avg)}</span>`;
+}
+function lockBadge(px) {
+  const size = px || 24;
+  return `<span class="badge lock" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.46)}px" title="내 점수를 매기면 공개">?</span>`;
 }
 function miniBadge(v, px) {
   const size = px || 24;
@@ -436,14 +452,18 @@ function onStyleLoad() {
   }
 }
 
-function toGeoJSON() {
+// ★4+ 같은 필터. 내 점수가 없어 가려진 곳은 평균을 모르는 셈이니 항상 보여 준다 (숨기면 점수가 새어 나감).
+function shownByFilter(p) {
   const min = Number(settings.minRating) || 0;
+  return isLocked(p.ratings) || p.rating >= min;
+}
+function toGeoJSON() {
   return {
     type: 'FeatureCollection',
-    features: places.filter((p) => p.rating >= min).map((p) => ({
+    features: places.filter(shownByFilter).map((p) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
-      properties: { id: p.id, name: p.name, rating: p.rating, bid: badgeId(p.ratings) },
+      properties: { id: p.id, name: p.name, rating: isLocked(p.ratings) ? 3 : p.rating, bid: badgeId(p.ratings) },
     })),
   };
 }
@@ -451,7 +471,7 @@ function refreshData() {
   const src = map.getSource('places');
   if (src) src.setData(toGeoJSON());
   const min = Number(settings.minRating) || 0;
-  const shown = places.filter((p) => p.rating >= min).length;
+  const shown = places.filter(shownByFilter).length;
   $('#pill').textContent = min > 0 ? `${min}점 이상 · ${shown}곳` : `${places.length}곳`;
   if (!$('#sheetList').classList.contains('hidden')) renderList();
   $('#dataHint').textContent = activeSyncUrl()
@@ -566,9 +586,32 @@ $('#btnLocate').addEventListener('click', async () => {
 // ---------- 시트 / 페이지 ----------
 const SHEETS = ['sheetAdd', 'sheetDetail', 'sheetList', 'sheetSettings', 'sheetSetup', 'sheetNames', 'sheetSyncHelp'];
 function openSheet(id) {
-  for (const s of SHEETS) $('#' + s).classList.toggle('hidden', s !== id);
+  for (const s of SHEETS) { const el = $('#' + s); el.classList.toggle('hidden', s !== id); el.style.transform = ''; }
   $('#backdrop').classList.remove('hidden');
 }
+// 시트 닫기: ✕ 버튼, 또는 손잡이·제목 부분(목록은 맨 위에서)을 아래로 쓸어내리기
+document.addEventListener('click', (e) => { if (e.target.closest('.sheet-close')) closeSheets(); });
+let swipe = null;
+document.addEventListener('touchstart', (e) => {
+  const sheet = e.target.closest('.sheet');
+  if (!sheet || (sheet.id === 'sheetNames' && !settings.me) || e.target.closest('input, textarea, select')) { swipe = null; return; }
+  const head = !!e.target.closest('.grip, h2, .list-head, .detail-head');
+  if (!head && sheet.scrollTop > 0) { swipe = null; return; }
+  swipe = { y0: e.touches[0].clientY, sheet, head, dy: 0 };
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!swipe) return;
+  swipe.dy = e.touches[0].clientY - swipe.y0;
+  if (swipe.dy > 0 && (swipe.head || swipe.sheet.scrollTop <= 0)) swipe.sheet.style.transform = `translateY(${swipe.dy}px)`;
+  else swipe.sheet.style.transform = '';
+}, { passive: true });
+document.addEventListener('touchend', () => {
+  if (!swipe) return;
+  const s = swipe; swipe = null;
+  s.sheet.style.transform = '';
+  if (s.dy > 90) closeSheets();
+});
+document.addEventListener('touchcancel', () => { if (swipe) { swipe.sheet.style.transform = ''; swipe = null; } });
 function closeSheets() {
   for (const s of SHEETS) $('#' + s).classList.add('hidden');
   $('#backdrop').classList.add('hidden');
@@ -875,8 +918,8 @@ function startDraft(init) {
     name: init.name || '',
     lat: init.lat, lng: init.lng,
     ratings,
+    locked: isLocked(ratings), // 내 점수가 없고 남의 점수만 있으면, 저장할 때까지 남의 점수는 가림
     extra: [],          // 이 폰에서 추가로 매기는 다른 사람 (아직 점수 없음)
-    masked: {},
     addingOther: false,
     category: init.category || '',
     memo: init.memo || '',
@@ -899,7 +942,6 @@ function startDraft(init) {
   $('#fCategory').value = draft.category;
   $('#fDate').value = draft.visitedAt;
   $('#fMemo').value = draft.memo;
-  $('#fBlind').checked = !!settings.blind;
   renderRaters();
   updateLocText();
   draftMarker = new maplibregl.Marker({ draggable: !fromKakao, color: '#E85A3A' }).setLngLat([draft.lng, draft.lat]).addTo(map);
@@ -940,9 +982,9 @@ function renderRaters() {
   $('#pairRate').innerHTML = rows.map((name) => {
     const v = r[name] == null ? null : r[name];
     const isMe = name === me();
-    const masked = settings.blind && draft.masked[name] && v != null;
+    const masked = draft.locked && !isMe && v != null;
     const body = masked
-      ? `<div class="masked">🙈 매겼어요 <button type="button" class="link" data-unmask="${esc(name)}">수정</button></div>`
+      ? '<div class="masked">🙈 매겼어요 · 내 점수를 저장하면 보여요</div>'
       : `<div class="rate-stars" data-user="${esc(name)}">${starsHTML(v)}</div>${v != null ? miniBadge(v, 28) : '<span class="mini-none">–</span>'}`;
     return `<div class="rate-row"><div class="who"><span class="who-dot" style="background:${isMe ? DOT_ME : DOT_OTHER}"></span>${esc(name)}${isMe ? '<span class="me-tag">나</span>' : ''}</div>${body}</div>`;
   }).join('');
@@ -962,9 +1004,9 @@ function renderRaters() {
   $('#pairRate').insertAdjacentHTML('beforeend', addHtml);
 
   const avg = avgOf(r);
-  const hidden = settings.blind && Object.keys(draft.masked).some((k) => draft.masked[k] && r[k] != null);
-  if (hidden) {
-    $('#avgLine').innerHTML = `<span class="badge none" style="width:40px;height:40px;font-size:16px">?</span><div class="avg-text"><div><b>🙈 비공개</b></div><div class="muted">저장하면 평균이 공개돼요</div></div>`;
+  if (draft.locked) {
+    const mine = r[me()];
+    $('#avgLine').innerHTML = `${mine != null ? miniBadge(mine, 40) : lockBadge(40)}<div class="avg-text"><div><b>${mine != null ? `내 점수 ${fmtRating(mine)}` : '🙈 아직 비공개'}</b></div><div class="muted">${mine != null ? '저장하면 상대 점수와 평균이 공개돼요' : '별을 눌러 내 점수를 매겨요. 저장하면 상대 점수가 공개돼요'}</div></div>`;
     return;
   }
   let text = '';
@@ -974,8 +1016,6 @@ function renderRaters() {
 }
 $('#pairRate').addEventListener('click', (e) => {
   if (!draft) return;
-  const un = e.target.closest('[data-unmask]');
-  if (un) { draft.masked[un.dataset.unmask] = false; renderRaters(); return; }
   if (e.target.closest('#btnAddOther')) { draft.addingOther = true; renderRaters(); setTimeout(() => { const i = $('#fOther'); if (i) i.focus(); }, 50); return; }
   const chip = e.target.closest('[data-other]');
   if (chip) { addOther(chip.dataset.other); return; }
@@ -988,7 +1028,6 @@ $('#pairRate').addEventListener('click', (e) => {
   const half = (e.clientX - rect.left) < rect.width / 2;
   const v = clampRating(half ? i - 0.5 : i);
   if (draft.ratings[name] === v) delete draft.ratings[name]; else draft.ratings[name] = v; // 같은 값 다시 누르면 취소
-  if (settings.blind && draft.ratings[name] != null) draft.masked[name] = true;
   renderRaters();
 });
 $('#pairRate').addEventListener('keydown', (e) => {
@@ -1002,11 +1041,6 @@ function addOther(name) {
   draft.addingOther = false;
   renderRaters();
 }
-$('#fBlind').addEventListener('change', () => {
-  settings.blind = $('#fBlind').checked;
-  saveSettings();
-  if (draft) { if (!settings.blind) draft.masked = {}; renderRaters(); }
-});
 $('#btnUseGps').addEventListener('click', async () => {
   if (!draft) return;
   try {
@@ -1052,7 +1086,8 @@ $('#btnSave').addEventListener('click', () => {
 let detailId = null;
 function pairLineHTML(r) {
   const names = orderedRaters(r, false);
-  const parts = names.map((k) => `<span class="mini">${miniBadge(r[k], 24)}<span class="who-dot" style="background:${k === me() ? DOT_ME : DOT_OTHER}"></span>${esc(k)}</span>`);
+  const locked = isLocked(r);
+  const parts = names.map((k) => `<span class="mini">${locked ? lockBadge(24) : miniBadge(r[k], 24)}<span class="who-dot" style="background:${k === me() ? DOT_ME : DOT_OTHER}"></span>${esc(k)}</span>`);
   if (r[me()] == null) parts.push('<button type="button" class="link" id="btnRateMe">내 점수 매기기</button>');
   return parts.join('');
 }
@@ -1062,7 +1097,10 @@ function openDetail(id) {
   detailId = id;
   $('#dStar').innerHTML = badgeHTML(p.ratings, 54);
   $('#dName').textContent = p.name;
-  $('#dSub').textContent = [`평균 ${fmtRating(p.rating)} · ${ratingLabel(p.rating)}`, p.category, regionOf(p)].filter(Boolean).join(' · ');
+  $('#dSub').textContent = [
+    isLocked(p.ratings) ? '내 점수를 매기면 상대 점수가 공개돼요' : `평균 ${fmtRating(p.rating)} · ${ratingLabel(p.rating)}`,
+    p.category, regionOf(p),
+  ].filter(Boolean).join(' · ');
   $('#dPair').innerHTML = pairLineHTML(p.ratings);
   $('#dMemo').textContent = p.memo || '';
   $('#dMemo').classList.toggle('hidden', !p.memo);
@@ -1130,14 +1168,18 @@ $('#btnRefresh').addEventListener('click', () => {
 const collapsedGroups = new Set();
 function placeRow(p) {
   const r = p.ratings;
-  const pair = orderedRaters(r, false).map((k) => `${esc(k)} ${fmtRating(r[k])}`).join(' · ');
+  const pair = isLocked(r)
+    ? `${orderedRaters(r, false).map(esc).join(', ')} 매김 · 내 점수를 매기면 공개`
+    : orderedRaters(r, false).map((k) => `${esc(k)} ${fmtRating(r[k])}`).join(' · ');
   const sub = [pair, [p.category, p.memo].filter(Boolean).join(' · ')].filter(Boolean).join('<br>');
   return `<li class="p-item" data-id="${esc(p.id)}">${badgeHTML(r, 36)}
     <div class="p-body"><div class="p-name">${esc(p.name)}</div><div class="p-sub">${sub}</div></div></li>`;
 }
 function renderList() {
   const min = Number(settings.minRating) || 0;
-  const arr = places.filter((p) => p.rating >= min).sort((a, b) => (b.rating - a.rating) || (b.updatedAt - a.updatedAt));
+  const lockRank = (p) => (isLocked(p.ratings) ? 1 : 0);
+  // 내 점수가 없는 곳을 맨 위에 (매겨야 하니까), 그다음 평균 높은 순
+  const arr = places.filter(shownByFilter).sort((a, b) => (lockRank(b) - lockRank(a)) || (b.rating - a.rating) || (b.updatedAt - a.updatedAt));
   $('#listCount').textContent = `${arr.length}곳`;
   $$('#chips .chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.min) === min));
   if (!arr.length) {
@@ -1153,12 +1195,12 @@ function renderList() {
   const order = Array.from(groups.entries())
     .sort((a, b) => (b[1].length - a[1].length) || a[0].localeCompare(b[0], 'ko'));
   $('#plist').innerHTML = order.map(([g, items]) => {
-    const best = items[0];
+    const best = items.find((p) => !isLocked(p.ratings));
     const closed = collapsedGroups.has(g);
     return `<li class="grp${closed ? ' closed' : ''}" data-g="${esc(g)}">
       <div class="grp-head">
         <span class="grp-name">${esc(g)}</span>
-        <span class="grp-count">${items.length}곳 · 최고 ${fmtRating(best.rating)}</span>
+        <span class="grp-count">${items.length}곳${best ? ` · 최고 ${fmtRating(best.rating)}` : ''}</span>
         <button class="grp-map" data-g="${esc(g)}" type="button">지도</button>
         <span class="grp-chev" aria-hidden="true"></span>
       </div>
@@ -1322,11 +1364,13 @@ const SYNC_FOREGROUND_GAP = 20000; // 앱을 다시 열었을 때 이 시간 안
 const SYNC_TIMEOUT = 25000;
 let syncTimer = null, syncing = false, syncAgain = false;
 let localRev = 0; // 사용자가 데이터를 바꾼 횟수. 요청 중에 또 바꿨는지 알아보는 데 쓴다.
+let lastLocalSaveAt = 0, lastVerCheckAt = 0;
 function activeSyncUrl() { return settings.syncUrl || DEFAULT_SYNC_URL; }
 function syncReady() { return !!activeSyncUrl() && !!settings.me; }
 function autoSyncOn() { return settings.autoSync !== false && syncReady(); }
 function markDirty() {
   localRev++;
+  lastLocalSaveAt = Date.now();
   syncState.dirty = true;
   saveJSON(LS_SYNC, syncState);
   if (autoSyncOn()) scheduleSync(1500);
@@ -1367,7 +1411,7 @@ function applySync(res, sentAt) {
   const M = window.StarmapMerge;
   const remote = (res.places || []).filter(M.valid).map(M.sanitize);
   const touched = places.concat(tombs).filter((p) => touchedAfter(p, sentAt)).map(M.sanitize);
-  const before = canon(places);
+  const beforeMap = new Map(places.map((p) => [M.keyOf(p), p]));
   const merged = M.mergeSets(remote, touched);
   const openDetailKey = detailId && !$('#sheetDetail').classList.contains('hidden')
     ? (places.find((p) => p.id === detailId) ? M.keyOf(places.find((p) => p.id === detailId)) : null) : null;
@@ -1380,7 +1424,24 @@ function applySync(res, sentAt) {
     const np = places.find((p) => M.keyOf(p) === openDetailKey);
     if (np) openDetail(np.id); else closeSheets();
   }
-  return canon(places) !== before;
+  // 무엇이 들어왔는지 한 줄로 (토스트용)
+  const news = [];
+  for (const p of places) {
+    const prev = beforeMap.get(M.keyOf(p));
+    const locked = isLocked(p.ratings); // 내 점수가 없는 곳은 토스트에도 상대 점수를 안 보여 준다
+    const who = raterNames(p.ratings).filter((n) => !prev || prev.ratings[n] !== p.ratings[n])
+      .map((n) => (locked ? `${n} 매김` : `${n} ${fmtRating(p.ratings[n])}`));
+    if (!prev || who.length || canon(prev) !== canon(p)) news.push({ name: p.name, who, locked });
+  }
+  const removed = Array.from(beforeMap.keys()).filter((k) => !places.some((p) => M.keyOf(p) === k)).length;
+  if (news.length === 1) {
+    const n = news[0];
+    if (!n.who.length) return `${n.name} 정보가 바뀌었어요`;
+    return `새 점수 · ${n.name}: ${n.who.join(', ')}${n.locked ? ' (내 점수를 매기면 공개)' : ''}`;
+  }
+  if (news.length > 1) return `시트에서 ${news.length}곳 업데이트`;
+  if (removed) return `다른 폰에서 ${removed}곳을 지웠어요`;
+  return '';
 }
 async function syncNow(manual) {
   if (!syncReady()) { if (manual) toast(settings.me ? '동기화 주소를 먼저 넣어 주세요' : '먼저 내 이름을 정해 주세요'); return; }
@@ -1392,12 +1453,14 @@ async function syncNow(manual) {
   try {
     const res = await syncRequest({ op: 'sync', token: settings.syncToken || '', me: settings.me, places, tombs });
     if (!res || !res.ok) throw new Error((res && res.error) || 'bad');
-    const changed = applySync(res, sentAt);
+    const newsText = applySync(res, sentAt);
     syncState.lastAt = Date.now(); syncState.lastCount = places.length; syncState.error = '';
+    syncState.ver = res.ver != null ? String(res.ver) : '';
+    lastVerCheckAt = Date.now();
     if (localRev === revAtSend) syncState.dirty = false;
     saveJSON(LS_SYNC, syncState);
     if (manual) toast(`동기화 완료 · ${places.length}곳`);
-    else if (changed) toast('시트에서 새 점수를 받아왔어요');
+    else if (newsText) toast(newsText);
   } catch (e) {
     console.warn('sync', e);
     syncState.error = syncErrorText(e);
@@ -1489,6 +1552,31 @@ $('#btnCopyGs').addEventListener('click', async () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && autoSyncOn() && Date.now() - syncState.lastAt > SYNC_FOREGROUND_GAP) scheduleSync(400);
 });
+// 켜져 있는 동안은 서버의 "바뀜 번호"(ver)만 가볍게 물어보다가, 달라지면 전체를 받아 온다.
+// 방금 저장했으면 상대 점수를 기다리는 중일 테니 더 자주 (5초), 평소엔 30초마다.
+const POLL_SLOW = 30000, POLL_FAST = 5000, POLL_FAST_WINDOW = 90000, POLL_FALLBACK = 120000;
+async function checkVer() {
+  lastVerCheckAt = Date.now();
+  const url = activeSyncUrl();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + 'op=ver', { redirect: 'follow', cache: 'no-store', signal: ctrl.signal });
+    const j = JSON.parse(await r.text());
+    if (!j || !j.ok) return;
+    if (j.ver == null) { // 예전 서버 코드(번호 없음): 가끔 전체 동기화로 대신
+      if (Date.now() - syncState.lastAt > POLL_FALLBACK) syncNow(false);
+      return;
+    }
+    if (String(j.ver) !== String(syncState.ver || '')) syncNow(false);
+  } catch (e) { /* 잠깐 끊긴 건 조용히 넘어감. 다음 번에 다시 */ }
+  finally { clearTimeout(timer); }
+}
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !autoSyncOn() || syncing) return;
+  const gap = Date.now() - lastLocalSaveAt < POLL_FAST_WINDOW ? POLL_FAST : POLL_SLOW;
+  if (Date.now() - lastVerCheckAt >= gap) checkVer();
+}, 1000);
 window.addEventListener('online', () => { if (autoSyncOn() && syncState.dirty) scheduleSync(800); });
 
 // ---------- 토스트 / 초기화 ----------

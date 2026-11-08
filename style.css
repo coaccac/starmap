@@ -185,7 +185,8 @@ button { font-family: inherit; cursor: pointer; touch-action: manipulation; colo
 .detail-links { font-size: 13px; margin: 4px 0 12px; display: flex; gap: 18px; }
 
 /* 목록: 구별 묶음 */
-.list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.list-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.list-head .chips { margin-left: auto; }
 .list-head h2 { margin: 0; }
 .chips { display: flex; gap: 6px; }
 .chip { border: 0; background: var(--soft); border-radius: 999px; padding: 7px 11px; font-size: 12px; font-weight: 600; color: var(--fg); white-space: nowrap; }
@@ -223,3 +224,11 @@ button { font-family: inherit; cursor: pointer; touch-action: manipulation; colo
 .sync-status.err { color: #B91C1C; }
 .pill.syncing::before { animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+
+/* 시트 닫기 버튼 (목록·상세). 아래로 쓸어내려도 닫혀요 */
+.sheet-close { flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--soft); color: var(--muted); font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.sheet-close:active { opacity: .7; }
+.detail-head .sheet-close { margin-left: auto; align-self: flex-start; }
+
+/* 내 점수가 없어서 상대 점수를 가린 곳: 회색 물음표 */
+.badge.lock { background: #9AA5B1; color: #fff; }

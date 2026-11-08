@@ -40,10 +40,13 @@
   const SpreadsheetApp = { getActiveSpreadsheet: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }), openById: () => ({ getSheetByName: () => sheet, insertSheet: () => sheet }) };
   const ContentService = { createTextOutput: (s) => ({ _s: s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } };
   const LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) };
+  const cacheStore = {}, propStore = {};
+  const CacheService = { getScriptCache: () => ({ get: (k) => cacheStore[k] || null, put: (k, v) => { cacheStore[k] = v; } }) };
+  const PropertiesService = { getScriptProperties: () => ({ getProperty: (k) => propStore[k] || null, setProperty: (k, v) => { propStore[k] = v; } }) };
   let srv;
   try {
-    srv = new Function('SpreadsheetApp', 'ContentService', 'LockService',
-      gs + '\nreturn { keyOf, sanitize, mergeRecord, mergeSets, doPost, doGet };')(SpreadsheetApp, ContentService, LockService);
+    srv = new Function('SpreadsheetApp', 'ContentService', 'LockService', 'CacheService', 'PropertiesService',
+      gs + '\nreturn { keyOf, sanitize, mergeRecord, mergeSets, doPost, doGet };')(SpreadsheetApp, ContentService, LockService, CacheService, PropertiesService);
     log(true, 'Code.gs 가 문법 오류 없이 로드됨');
   } catch (e) { log(false, 'Code.gs 로드', String(e)); document.getElementById('title').textContent = 'FAIL'; return; }
   const post = (body) => JSON.parse(srv.doPost({ postData: { contents: JSON.stringify(body) } })._s);
@@ -142,6 +145,14 @@
     eq("시트 셀: '=' 로 시작하는 메모는 글자로 고정", rows[0][6], "'=SUM(1)");
     const g = JSON.parse(srv.doGet({})._s);
     eq('doGet: 살아 있는 식당 수', g.places, 1);
+    // 바뀜 번호(ver): 바뀌면 올라가고, 안 바뀌면 그대로. ?op=ver 는 시트를 안 읽고 같은 번호를 준다
+    log(typeof r1.ver === 'string' && r1.ver !== '0', 'ver: 첫 저장 뒤 번호가 생김', r1.ver);
+    eq('ver: 바뀐 것 없으면 그대로', r4.ver, r3.ver);
+    log(r5.ver !== r3.ver, 'ver: 바뀌면 달라짐');
+    eq('doGet ?op=ver 는 마지막 번호', JSON.parse(srv.doGet({ parameter: { op: 'ver' } })._s).ver, r5.ver);
+    eq('POST op=ver 도 같은 번호', post({ op: 'ver' }).ver, r5.ver);
+    cacheStore[Object.keys(cacheStore)[0]] = null;
+    eq('캐시가 비어도 속성에서 번호를 읽음', JSON.parse(srv.doGet({ parameter: { op: 'ver' } })._s).ver, r5.ver);
     eq('bad json', JSON.parse(srv.doPost({ postData: { contents: '{nope' } })._s).ok, false);
     eq('쓰레기 레코드는 버림', post({ op: 'sync', places: [{ name: 'x' }, null, { id: 'z', lat: 'a', lng: 1 }], tombs: [] }).places.length, 1);
   }
