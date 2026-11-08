@@ -403,13 +403,21 @@ function onStyleLoad() {
     if (l.type === 'symbol' && l.layout && l.layout['text-field']) {
       const tf = JSON.stringify(l.layout['text-field']);
       if (tf.indexOf('name') !== -1) map.setLayoutProperty(l.id, 'text-field', KO_NAME);
+      // 물 이름 같은 이탤릭 묶음은 한글을 기기 글꼴로 그릴 때 억지로 기울어져 보기 싫다 → 정자체로
+      const tfont = l.layout['text-font'];
+      if (Array.isArray(tfont) && tfont.every((f) => typeof f === 'string') && tfont.some((f) => /italic/i.test(f))) {
+        map.setLayoutProperty(l.id, 'text-font', tfont.map((f) => f.replace(/\s*Italic/i, ' Regular').replace(/\s+/g, ' ').trim()));
+      }
     }
   }
-  const sym = style.layers.find((l) => l.type === 'symbol' && l.layout && Array.isArray(l.layout['text-font'])
-    && l.layout['text-font'].every((f) => typeof f === 'string'));
-  if (sym) fontStack = sym.layout['text-font'];
-  const hasBold = style.layers.some((l) => l.type === 'symbol' && l.layout && JSON.stringify(l.layout['text-font'] || '').indexOf('Bold') !== -1);
-  guFont = hasBold ? ['Noto Sans Bold'] : fontStack;
+  // 우리 라벨에 쓸 글꼴 묶음: 스타일에 있는 것 중 이탤릭이 아닌 Regular / Bold
+  const stacks = style.layers
+    .filter((l) => l.type === 'symbol' && l.layout && Array.isArray(l.layout['text-font']) && l.layout['text-font'].every((f) => typeof f === 'string'))
+    .map((l) => l.layout['text-font'])
+    .filter((s) => !s.some((f) => /italic/i.test(f)));
+  const pick = (re) => stacks.find((s) => s.some((f) => re.test(f)));
+  fontStack = pick(/regular/i) || stacks[0] || ['Noto Sans Regular'];
+  guFont = pick(/bold/i) || fontStack;
 
   // 4) 서울 구 경계선 + 구 이름 (내 마커 아래에 깔림)
   if (!map.getSource('seoul-gu')) map.addSource('seoul-gu', { type: 'geojson', data: guData || EMPTY_FC });
@@ -476,10 +484,10 @@ function onStyleLoad() {
   }
 }
 
-// ★4+ 같은 필터: 평균이 그 점수 이상인 곳만. 내 점수가 없어 가려진 곳도 (숨겨진) 평균으로 똑같이 거른다.
+// ★4+ 같은 필터: 평균이 그 점수 이상인 곳만. 내 점수가 없어 가려진 곳(물음표)은 거르지 않고 그대로 둔다.
 function shownByFilter(p) {
   const min = Number(settings.minRating) || 0;
-  return p.rating >= min;
+  return isLocked(p.ratings) || p.rating >= min;
 }
 function toGeoJSON() {
   return {
