@@ -27,7 +27,7 @@ const LOCK_COLOR = '#9AA5B1'; // 내 점수가 없어서 상대 점수를 가린
 const RATING_TEXT_DARK = new Set(['10', '15', '20', '25']);
 const KO_NAME = ['coalesce', ['get', 'name:ko'], ['get', 'name:nonlatin'], ['get', 'name:latin'], ['get', 'name']];
 const RATING_NUM = ['number', ['get', 'rating'], 3];
-const UI_FONT = '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif';
+const UI_FONT = '"NanumSquareNeo", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif';
 const DOT_ME = '#0EA5E9', DOT_OTHER = '#8B5CF6'; // 사람 구분용 점 색 (점수 색과 별개)
 
 // config.js 에 적어 둔 기본 키. 설정 화면에서 다른 키를 넣으면 그게 우선.
@@ -327,12 +327,23 @@ map.on('moveend', () => saveJSON(LS_VIEW, { center: map.getCenter().toArray(), z
 map.on('style.load', onStyleLoad);
 map.on('error', (e) => console.warn('map error', e && e.error));
 // 배지 이미지는 조합이 많아서 필요할 때 만들어 넣는다.
+const badgeImageIds = new Set();
 map.on('styleimagemissing', (e) => {
   const b = parseBadgeId(e.id);
   if (!b || map.hasImage(e.id)) return;
   const img = makeBadgeImage(b);
   map.addImage(e.id, img.data, { pixelRatio: img.pixelRatio });
+  badgeImageIds.add(e.id);
 });
+// 웹 글꼴이 늦게 도착하면 먼저 그린 배지는 시스템 글꼴이다. 글꼴이 준비되면 지우고 다시 그리게 한다.
+if (document.fonts && document.fonts.load) {
+  document.fonts.load('800 20px NanumSquareNeo').then(() => {
+    if (!badgeImageIds.size) return;
+    for (const id of badgeImageIds) if (map.hasImage(id)) map.removeImage(id);
+    badgeImageIds.clear();
+    refreshData();
+  }).catch(() => {});
+}
 
 let fontStack = ['Noto Sans Regular'];
 let guFont = ['Noto Sans Bold'];
@@ -472,7 +483,8 @@ function refreshData() {
   if (src) src.setData(toGeoJSON());
   const min = Number(settings.minRating) || 0;
   const shown = places.filter(shownByFilter).length;
-  $('#pill').textContent = min > 0 ? `${min}점 이상 · ${shown}곳` : `${places.length}곳`;
+  $('#pill').textContent = min > 0 ? `${shown} / ${places.length}곳` : `${places.length}곳`;
+  renderFilterChips();
   if (!$('#sheetList').classList.contains('hidden')) renderList();
   $('#dataHint').textContent = activeSyncUrl()
     ? `저장된 곳 ${places.length}개 · 구글 시트와 맞추고 있어요. 그래도 가끔 내보내기로 백업해 두세요.`
@@ -480,6 +492,26 @@ function refreshData() {
   const others = knownOthers();
   $('#sOthers').textContent = others.length ? `같이 매긴 사람: ${others.join(', ')}` : '아직 다른 사람 점수는 없어요.';
 }
+
+// 점수 필터 (지도 위 칩과 목록 머리의 칩이 같은 값을 공유)
+function renderFilterChips() {
+  const min = Number(settings.minRating) || 0;
+  $$('#mapFilter .chip, #chips .chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.min) === min));
+}
+function setMinRating(v) {
+  settings.minRating = Number(v) || 0;
+  saveSettings();
+  refreshData();
+  if (!$('#sheetList').classList.contains('hidden')) renderList();
+}
+$('#mapFilter').addEventListener('click', (e) => {
+  const c = e.target.closest('.chip');
+  if (!c) return;
+  setMinRating(c.dataset.min);
+  const min = Number(settings.minRating) || 0;
+  const shown = places.filter(shownByFilter).length;
+  toast(min > 0 ? `${min}점 이상 ${shown}곳 (내 점수가 없는 곳은 항상 보여요)` : '전체 보기');
+});
 
 map.on('click', 'places', (e) => {
   const f = e.features && e.features[0];
@@ -1181,7 +1213,7 @@ function renderList() {
   // 내 점수가 없는 곳을 맨 위에 (매겨야 하니까), 그다음 평균 높은 순
   const arr = places.filter(shownByFilter).sort((a, b) => (lockRank(b) - lockRank(a)) || (b.rating - a.rating) || (b.updatedAt - a.updatedAt));
   $('#listCount').textContent = `${arr.length}곳`;
-  $$('#chips .chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.min) === min));
+  renderFilterChips();
   if (!arr.length) {
     $('#plist').innerHTML = '<li class="p-empty">아직 없어요. 검색해서 첫 별점을 등록해요.</li>';
     return;
@@ -1243,11 +1275,7 @@ $('#plist').addEventListener('click', (e) => {
 });
 $('#chips').addEventListener('click', (e) => {
   const c = e.target.closest('.chip');
-  if (!c) return;
-  settings.minRating = Number(c.dataset.min);
-  saveSettings();
-  refreshData();
-  renderList();
+  if (c) setMinRating(c.dataset.min);
 });
 $('#btnList').addEventListener('click', () => { renderList(); openSheet('sheetList'); });
 

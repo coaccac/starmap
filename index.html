@@ -25,7 +25,16 @@
   </button>
 </header>
 
-<div id="pill" class="pill">0곳</div>
+<!-- 지도 위 점수 필터: 이 점수 이상만 보이기 (내 점수가 없어 가려진 곳은 항상 보임) -->
+<div id="mapFilter" class="map-filter" aria-label="점수 필터">
+  <div id="pill" class="pill">0곳</div>
+  <button class="chip" data-min="0" type="button">전체</button>
+  <button class="chip" data-min="3" type="button">3+</button>
+  <button class="chip" data-min="3.5" type="button">3.5+</button>
+  <button class="chip" data-min="4" type="button">4+</button>
+  <button class="chip" data-min="4.5" type="button">4.5+</button>
+  <button class="chip" data-min="5" type="button">5.0</button>
+</div>
 
 <div class="fab-stack">
   <button id="btnLocate" class="fab" aria-label="내 위치">
@@ -141,8 +150,11 @@
     <h2>우리 식당 <span id="listCount" class="detail-sub"></span></h2>
     <div class="chips" id="chips">
       <button class="chip" data-min="0" type="button">전체</button>
+      <button class="chip" data-min="3" type="button">3+</button>
+      <button class="chip" data-min="3.5" type="button">3.5+</button>
       <button class="chip" data-min="4" type="button">4+</button>
       <button class="chip" data-min="4.5" type="button">4.5+</button>
+      <button class="chip" data-min="5" type="button">5.0</button>
     </div>
     <button class="sheet-close" type="button" aria-label="지도로 돌아가기">✕</button>
   </div>

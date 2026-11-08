@@ -1,3 +1,9 @@
+/* 글꼴: 나눔스퀘어 네오. 네이버 CDN의 woff2를 굵기별로 받아요 (약 380KB씩, 한 번 받으면 캐시).
+   받기 전이나 오프라인일 땐 시스템 글꼴로 보여요. */
+@font-face { font-family: 'NanumSquareNeo'; font-weight: 400; font-display: swap; src: url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-bRg.woff2') format('woff2'); }
+@font-face { font-family: 'NanumSquareNeo'; font-weight: 700; font-display: swap; src: url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-cBd.woff2') format('woff2'); }
+@font-face { font-family: 'NanumSquareNeo'; font-weight: 800; font-display: swap; src: url('https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareNeo/NanumSquareNeoTTF-dEb.woff2') format('woff2'); }
+
 :root {
   --fg: #111827;
   --muted: #6B7280;
@@ -19,7 +25,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
   margin: 0; height: 100%; overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard, "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  font-family: "NanumSquareNeo", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
   color: var(--fg); background: #EEF0F3; overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
 }
@@ -91,10 +97,20 @@ button { font-family: inherit; cursor: pointer; touch-action: manipulation; colo
 .fab.busy { opacity: .5; }
 .fab:active { transform: scale(.96); }
 
+.map-filter {
+  position: fixed; left: 14px; right: 76px; bottom: calc(var(--safe-bottom) + 46px); z-index: 20;
+  display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  padding: 4px 24px 4px 0; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+}
+.map-filter::-webkit-scrollbar { display: none; }
+.map-filter .chip {
+  flex: none; background: var(--surface); border: 1px solid rgba(16,24,40,.06); box-shadow: var(--shadow-sm);
+  padding: 8px 12px; font-size: 13px; font-weight: 700;
+}
+.map-filter .chip.on { background: var(--fg); color: #fff; border-color: var(--fg); }
 .pill {
-  position: fixed; left: 14px; bottom: calc(var(--safe-bottom) + 46px); z-index: 20;
-  background: var(--surface); border: 1px solid rgba(16,24,40,.06); border-radius: 999px; padding: 8px 14px 8px 12px;
-  font-size: 13px; font-weight: 600; box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 7px;
+  flex: none; background: var(--surface); border: 1px solid rgba(16,24,40,.06); border-radius: 999px; padding: 8px 14px 8px 12px;
+  font-size: 13px; font-weight: 700; box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 7px; white-space: nowrap;
 }
 .pill::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex: none; }
 .maplibregl-ctrl-bottom-left { bottom: var(--safe-bottom); }
@@ -186,7 +202,8 @@ button { font-family: inherit; cursor: pointer; touch-action: manipulation; colo
 
 /* 목록: 구별 묶음 */
 .list-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.list-head .chips { margin-left: auto; }
+.list-head .chips { margin-left: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.list-head .chips::-webkit-scrollbar { display: none; }
 .list-head h2 { margin: 0; white-space: nowrap; }
 .chips { display: flex; gap: 6px; }
 .chip { border: 0; background: var(--soft); border-radius: 999px; padding: 7px 11px; font-size: 12px; font-weight: 600; color: var(--fg); white-space: nowrap; }
