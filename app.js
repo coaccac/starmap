@@ -485,7 +485,10 @@ function onStyleLoad() {
 }
 
 // ★4+ 같은 필터: 평균이 그 점수 이상인 곳만. 내 점수가 없어 가려진 곳(물음표)은 거르지 않고 그대로 둔다.
+// 물음표 버튼(onlyLocked)이 켜져 있으면 안 매긴 곳만.
+let onlyLocked = false;
 function shownByFilter(p) {
+  if (onlyLocked) return isLocked(p.ratings);
   const min = Number(settings.minRating) || 0;
   return isLocked(p.ratings) || p.rating >= min;
 }
@@ -504,7 +507,7 @@ function refreshData() {
   if (src) src.setData(toGeoJSON());
   const min = Number(settings.minRating) || 0;
   const shown = places.filter(shownByFilter).length;
-  $('#pill').textContent = min > 0 ? `${shown} / ${places.length}곳` : `${places.length}곳`;
+  $('#pill').textContent = onlyLocked ? `안 매긴 곳 ${shown}` : (min > 0 ? `${shown} / ${places.length}곳` : `${places.length}곳`);
   renderFilterChips();
   if (!$('#sheetList').classList.contains('hidden')) renderList();
   $('#dataHint').textContent = activeSyncUrl()
@@ -517,9 +520,13 @@ function refreshData() {
 // 점수 필터 (지도 위 칩과 목록 머리의 칩이 같은 값을 공유)
 function renderFilterChips() {
   const min = Number(settings.minRating) || 0;
-  $$('#mapFilter .chip, #chips .chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.min) === min));
+  $$('#mapFilter .chip, #chips .chip').forEach((c) => c.classList.toggle('on', !onlyLocked && Number(c.dataset.min) === min));
+  $('#mapFilter').classList.toggle('dim', onlyLocked);
+  $('#chips').classList.toggle('dim', onlyLocked);
+  $('#btnTodo').classList.toggle('on', onlyLocked);
 }
 function setMinRating(v) {
+  onlyLocked = false; // 점수 칩을 누르면 물음표 모드는 끔
   settings.minRating = Number(v) || 0;
   saveSettings();
   refreshData();
@@ -527,11 +534,14 @@ function setMinRating(v) {
 }
 $('#mapFilter').addEventListener('click', (e) => {
   const c = e.target.closest('.chip');
-  if (!c) return;
-  setMinRating(c.dataset.min);
-  const min = Number(settings.minRating) || 0;
-  const shown = places.filter(shownByFilter).length;
-  toast(min > 0 ? `${min}점 이상 ${shown}곳` : '전체 보기');
+  if (c) setMinRating(c.dataset.min); // 안내 문구 없이 조용히 (알약의 개수로 충분)
+});
+// 물음표 버튼: 내가 아직 안 매긴 곳만 보기 (켜져 있는 동안은 점수 칩을 무시)
+$('#btnTodo').addEventListener('click', () => {
+  if (!onlyLocked && !places.some((p) => isLocked(p.ratings))) { toast('내가 아직 안 매긴 곳이 없어요'); return; }
+  onlyLocked = !onlyLocked;
+  refreshData();
+  if (!$('#sheetList').classList.contains('hidden')) renderList();
 });
 
 map.on('click', 'places', (e) => {
