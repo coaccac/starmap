@@ -1657,6 +1657,15 @@ else {
 
 if ('serviceWorker' in navigator) {
   const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  if (secure) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  if (secure) {
+    // sw.js 자체도 HTTP 캐시를 거치지 않고 매번 확인 (GitHub Pages 의 10분 캐시 때문에 새 버전이 늦게 오는 것 방지)
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
+    // 새 서비스 워커가 자리를 잡으면(= 새 버전이 받아졌으면) 한 번 새로고침해서 바로 새 코드로
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && !draft) location.reload();
+      hadController = true;
+    });
+  }
 }
 })();
