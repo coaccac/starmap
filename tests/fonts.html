@@ -43,7 +43,8 @@ body { margin: 0; background: #E9ECEF; color: var(--fg); font-family: var(--f); 
 .sheet { background: #fff; border-radius: 20px 20px 0 0; padding: 12px 14px 8px; box-shadow: 0 -4px 20px rgba(16,24,40,.08); }
 .grip { width: 36px; height: 4px; border-radius: 2px; background: #D1D5DB; margin: 0 auto 10px; }
 .head { display: flex; align-items: center; gap: 8px; }
-.head h2 { margin: 0; font-size: 19px; letter-spacing: -0.02em; }
+.head h2 { margin: 0; font-size: 19px; letter-spacing: -0.02em; white-space: nowrap; }
+.chip, .x { white-space: nowrap; flex: none; }
 .head h2 span { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 4px; }
 .chips { display: flex; gap: 5px; margin-left: auto; }
 .chip { border-radius: 999px; background: var(--soft); padding: 6px 10px; font-size: 12px; font-weight: 600; }
@@ -149,7 +150,7 @@ if (location.search.indexOf('grid') !== -1) {
     .cell { background: #F7F7F8; border-radius: 16px; padding: 8px; border: 1px solid #fff; }
     .cell .lbl { font-family: var(--sys); font-size: 12px; font-weight: 700; color: var(--accent); margin: 2px 4px 6px; }
     .cell .sheet { border-radius: 14px; box-shadow: none; padding: 10px 12px 6px; }
-    .cell .detail, .cell .btns, .cell .grip { display: none; }
+    .cell .detail, .cell .btns, .cell .grip, .cell .row:last-of-type { display: none; }
   </style><div class="grid">${FONTS.map((f) => `<div class="cell" style="font-family:${f.family}"><div class="lbl">${f.name}</div>${sheet}</div>`).join('')}</div>`;
 }
 </script>
