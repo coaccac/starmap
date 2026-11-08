@@ -313,14 +313,25 @@ function starsHTML(v) {
 
 // ---------- 지도 ----------
 const savedView = loadJSON(LS_VIEW, null);
+// 지도 위 한글 라벨(식당 이름·구 이름·동네 이름)은 MapLibre가 기기 글꼴로 직접 그린다 (localIdeographFontFamily 는
+// 한글 음절 범위에 적용). 글꼴이 오기 전에 그리면 시스템 글꼴로 굳으니, 빈 스타일로 띄운 뒤 글꼴이 준비되면 진짜 스타일을 얹는다.
+const EMPTY_STYLE = { version: 8, sources: {}, layers: [] };
 const map = new maplibregl.Map({
   container: 'map',
-  style: STYLE_URLS[settings.style],
+  style: EMPTY_STYLE,
   center: savedView && Array.isArray(savedView.center) ? savedView.center : DEFAULT_CENTER,
   zoom: savedView && Number.isFinite(savedView.zoom) ? savedView.zoom : DEFAULT_ZOOM,
   attributionControl: false,
   maxZoom: 19,
+  localIdeographFontFamily: '"NanumSquareNeo", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
 });
+const fontReady = (document.fonts && document.fonts.load)
+  ? Promise.race([
+    Promise.all([document.fonts.load('400 24px NanumSquareNeo'), document.fonts.load('800 24px NanumSquareNeo')]),
+    new Promise((r) => setTimeout(r, 2000)), // 글꼴이 너무 늦으면 그냥 시작
+  ]).catch(() => {})
+  : Promise.resolve();
+fontReady.then(() => map.setStyle(STYLE_URLS[settings.style]));
 map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
 map.touchPitch.disable();
 map.on('moveend', () => saveJSON(LS_VIEW, { center: map.getCenter().toArray(), zoom: map.getZoom() }));
@@ -376,7 +387,7 @@ function applyLayerToggles() {
 
 function onStyleLoad() {
   const style = map.getStyle();
-  if (!style || !style.layers) return;
+  if (!style || !style.layers || !style.glyphs) return; // 글꼴 기다리는 동안의 빈 스타일은 건너뜀
   roadLabelLayers = [];
   // 1) 가게/건물 라벨(POI)은 전부 숨기고, 2) 도로명·도로번호는 설정에 따라, 3) 지명은 한국어로
   for (const l of style.layers) {
@@ -446,12 +457,14 @@ function onStyleLoad() {
         'symbol-sort-key': RATING_NUM,
         'text-field': ['get', 'name'],
         'text-font': fontStack,
-        'text-size': 11.5,
-        'text-anchor': 'top',
-        // 배지 반지름(11~19px) + 여백만큼 아래로
-        'text-offset': ['interpolate', ['linear'], RATING_NUM, 1, ['literal', [0, 1.25]], 5, ['literal', [0, 1.95]]],
+        'text-size': 11,
+        // 배지 아래가 기본, 자리가 없으면 위·왼쪽·오른쪽으로 옮겨 가며 이름을 되도록 보여 준다
+        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
+        // 배지 반지름(11~19px) + 여백만큼 떨어뜨림 (em 단위)
+        'text-radial-offset': ['interpolate', ['linear'], RATING_NUM, 1, 1.3, 5, 2.0],
+        'text-justify': 'auto',
         'text-optional': true,
-        'text-max-width': 8,
+        'text-max-width': 12,
         'text-letter-spacing': 0.01,
       },
       paint: {
@@ -463,10 +476,10 @@ function onStyleLoad() {
   }
 }
 
-// ★4+ 같은 필터. 내 점수가 없어 가려진 곳은 평균을 모르는 셈이니 항상 보여 준다 (숨기면 점수가 새어 나감).
+// ★4+ 같은 필터: 평균이 그 점수 이상인 곳만. 내 점수가 없어 가려진 곳도 (숨겨진) 평균으로 똑같이 거른다.
 function shownByFilter(p) {
   const min = Number(settings.minRating) || 0;
-  return isLocked(p.ratings) || p.rating >= min;
+  return p.rating >= min;
 }
 function toGeoJSON() {
   return {
@@ -510,7 +523,7 @@ $('#mapFilter').addEventListener('click', (e) => {
   setMinRating(c.dataset.min);
   const min = Number(settings.minRating) || 0;
   const shown = places.filter(shownByFilter).length;
-  toast(min > 0 ? `${min}점 이상 ${shown}곳 (내 점수가 없는 곳은 항상 보여요)` : '전체 보기');
+  toast(min > 0 ? `${min}점 이상 ${shown}곳` : '전체 보기');
 });
 
 map.on('click', 'places', (e) => {

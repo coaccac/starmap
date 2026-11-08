@@ -1,1 +1,4 @@
 5.24.0
+
+NanumSquare Neo (나눔스퀘어 네오) — Regular/Bold/ExtraBold woff2, from hangeul.pstatic.net (NAVER).
+License: SIL Open Font License 1.1 (https://hangeul.naver.com). Redistribution allowed.

@@ -1,8 +1,8 @@
 /* 앱 껍데기만 캐시. 지도 타일/검색은 항상 네트워크. */
-const CACHE = 'starmap-shell-v5';
+const CACHE = 'starmap-shell-v6';
 const SHELL = [
   './', './index.html', './style.css', './config.js', './app.js', './manifest.json',
-  './vendor/maplibre-gl.js', './vendor/maplibre-gl.css', './data/seoul-gu.json', './sync/merge.js',
+  './vendor/maplibre-gl.js', './vendor/maplibre-gl.css', './data/seoul-gu.json', './sync/merge.js', './vendor/fonts/NanumSquareNeo-Rg.woff2', './vendor/fonts/NanumSquareNeo-Bd.woff2', './vendor/fonts/NanumSquareNeo-Eb.woff2',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 
